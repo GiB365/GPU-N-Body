@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://b8b8pwy62yov1"]
+
+[ext_resource type="Script" uid="uid://b0k7gyrxccm83" path="res://NBodySimulationGPU.cs" id="1_p5njs"]
+
+[node name="NBodySimulationGPU" type="Node2D" unique_id=1166420153]
+script = ExtResource("1_p5njs")
+debugInterval = 1.0
+generatePositionsInCircle = true

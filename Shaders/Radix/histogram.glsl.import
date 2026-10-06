@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://civocea6ucvdd"
+path="res://.godot/imported/histogram.glsl-b7bd7abebc3faac6a9bfc242b299bd78.res"
+
+[deps]
+
+source_file="res://Shaders/Radix/histogram.glsl"
+dest_files=["res://.godot/imported/histogram.glsl-b7bd7abebc3faac6a9bfc242b299bd78.res"]
+
+[params]
+

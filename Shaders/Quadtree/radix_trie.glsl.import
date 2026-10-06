@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://rcx6y253s51t"
+path="res://.godot/imported/radix_trie.glsl-1d4f864edf4621c28a7927b9c1e6cc93.res"
+
+[deps]
+
+source_file="res://Shaders/Quadtree/radix_trie.glsl"
+dest_files=["res://.godot/imported/radix_trie.glsl-1d4f864edf4621c28a7927b9c1e6cc93.res"]
+
+[params]
+

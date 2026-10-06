@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://ds71ce3qh5h01"
+path="res://.godot/imported/workgroup_bounds.glsl-df0920ad5c88fd072e38bf0e7aa4eec3.res"
+
+[deps]
+
+source_file="res://Shaders/Morton/workgroup_bounds.glsl"
+dest_files=["res://.godot/imported/workgroup_bounds.glsl-df0920ad5c88fd072e38bf0e7aa4eec3.res"]
+
+[params]
+

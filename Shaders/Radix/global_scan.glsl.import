@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://rkwreef1pop1"
+path="res://.godot/imported/global_scan.glsl-4065679fa1b38006953c7c2dd408dc9d.res"
+
+[deps]
+
+source_file="res://Shaders/Radix/global_scan.glsl"
+dest_files=["res://.godot/imported/global_scan.glsl-4065679fa1b38006953c7c2dd408dc9d.res"]
+
+[params]
+

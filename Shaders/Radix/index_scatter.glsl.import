@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://dii7cdsfj3pjj"
+path="res://.godot/imported/index_scatter.glsl-f6139f091c11b33159f55d49f16e01f6.res"
+
+[deps]
+
+source_file="res://Shaders/Radix/index_scatter.glsl"
+dest_files=["res://.godot/imported/index_scatter.glsl-f6139f091c11b33159f55d49f16e01f6.res"]
+
+[params]
+

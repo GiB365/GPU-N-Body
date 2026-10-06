@@ -1,0 +1,93 @@
+[gd_scene format=3 uid="uid://b8b8pwy62yov1"]
+
+[ext_resource type="Script" uid="uid://b0k7gyrxccm83" path="res://NBodySimulationGPU.cs" id="1_p5njs"]
+[ext_resource type="Script" uid="uid://dl18ldf78gr3r" path="res://label.gd" id="2_5iiiy"]
+[ext_resource type="Script" uid="uid://gfuoxrqt3p1a" path="res://simulation_gui.gd" id="2_ewuxh"]
+
+[node name="NBodySimulationGPU" type="Node2D" unique_id=1166420153]
+script = ExtResource("1_p5njs")
+debugMode = true
+debugParticles = true
+debugRadixSort = true
+debugInterval = 1.0
+gravitationalConstant = 100.0
+epsilon = 10.0
+particleCount = 2048
+
+[node name="Camera" type="Camera2D" parent="." unique_id=381993979]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1071133414]
+
+[node name="Simulation GUI" type="Control" parent="CanvasLayer" unique_id=543262800]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 1920.0
+offset_bottom = 1080.0
+script = ExtResource("2_ewuxh")
+metadata/_edit_use_anchors_ = true
+
+[node name="G Slider" type="HSlider" parent="CanvasLayer/Simulation GUI" unique_id=1747989144]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.033333335
+anchor_top = 0.9444444
+anchor_right = 0.13333334
+anchor_bottom = 0.97407407
+grow_vertical = 0
+max_value = 1000.0
+value = 100.0
+metadata/_edit_use_anchors_ = true
+
+[node name="Label" type="Label" parent="CanvasLayer/Simulation GUI/G Slider" unique_id=2083948535]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -92.0
+offset_top = -24.0
+offset_right = 92.0
+offset_bottom = -1.0
+grow_horizontal = 2
+text = "G"
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="e Slider" type="HSlider" parent="CanvasLayer/Simulation GUI" unique_id=417165658]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.14166667
+anchor_top = 0.9444444
+anchor_right = 0.24166666
+anchor_bottom = 0.97407407
+grow_vertical = 0
+step = 0.1
+value = 0.1
+exp_edit = true
+metadata/_edit_use_anchors_ = true
+
+[node name="Label" type="Label" parent="CanvasLayer/Simulation GUI/e Slider" unique_id=1254320305]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -92.0
+offset_top = -24.0
+offset_right = 92.0
+offset_bottom = -1.0
+grow_horizontal = 2
+text = "Epsilon"
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/_edit_use_anchors_ = true
+
+[node name="Label" type="Label" parent="CanvasLayer/Simulation GUI" unique_id=949618901]
+layout_mode = 1
+offset_right = 45.0
+offset_bottom = 23.0
+text = "FPS: 0"
+script = ExtResource("2_5iiiy")
+metadata/_edit_use_anchors_ = true
+
+[connection signal="value_changed" from="CanvasLayer/Simulation GUI/G Slider" to="CanvasLayer/Simulation GUI" method="_on_g_slider_value_changed"]
+[connection signal="value_changed" from="CanvasLayer/Simulation GUI/e Slider" to="CanvasLayer/Simulation GUI" method="_on_e_slider_value_changed"]

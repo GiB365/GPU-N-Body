@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://0chx3rtq66vq"
+path="res://.godot/imported/workgroup_scan.glsl-3a26533947d9bfe2b1b808392ad23beb.res"
+
+[deps]
+
+source_file="res://Shaders/Radix/workgroup_scan.glsl"
+dest_files=["res://.godot/imported/workgroup_scan.glsl-3a26533947d9bfe2b1b808392ad23beb.res"]
+
+[params]
+

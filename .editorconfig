@@ -1,0 +1,12 @@
+root = true
+
+[*]
+charset = utf-8
+
+[*.cs]
+csharp_new_line_before_open_brace = none
+csharp_new_line_before_else = false
+csharp_new_line_before_catch = false
+csharp_new_line_before_finally = false
+csharp_space_before_for_parentheses = true
+csharp_space_after_keywords_in_control_flow_statements = true

@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://bwaa0lqo8kv2a"
+path="res://.godot/imported/bodies_shader.glsl-0d8ab1b90bdf94bbc01ae2d312f5bba5.res"
+
+[deps]
+
+source_file="res://bodies_shader.glsl"
+dest_files=["res://.godot/imported/bodies_shader.glsl-0d8ab1b90bdf94bbc01ae2d312f5bba5.res"]
+
+[params]
+

@@ -1,0 +1,35 @@
+[gd_resource type="Theme" format=3 uid="uid://b5n3dpfma88cu"]
+
+[sub_resource type="DPITexture" id="DPITexture_h6ycm"]
+_source = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\"><circle cx=\"8\" cy=\"8\" r=\"7\" fill=\"#fefefe\"/></svg>
+"
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gx6sy"]
+bg_color = Color(0.4, 0.6, 0.7019608, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_h6ycm"]
+bg_color = Color(0.4, 0.6, 0.7019608, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_5sq51"]
+bg_color = Color(1, 1, 1, 1)
+draw_center = false
+border_width_top = 5
+border_width_bottom = 5
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[resource]
+HSlider/icons/grabber = SubResource("DPITexture_h6ycm")
+HSlider/styles/grabber_area = SubResource("StyleBoxFlat_gx6sy")
+HSlider/styles/grabber_area_highlight = SubResource("StyleBoxFlat_h6ycm")
+HSlider/styles/slider = SubResource("StyleBoxFlat_5sq51")

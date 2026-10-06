@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://cxdxoyf74wljk"
+path="res://.godot/imported/full_scatter.glsl-4d1c68336287a1523cecbd0f117e9ce2.res"
+
+[deps]
+
+source_file="res://Shaders/Radix/full_scatter.glsl"
+dest_files=["res://.godot/imported/full_scatter.glsl-4d1c68336287a1523cecbd0f117e9ce2.res"]
+
+[params]
+

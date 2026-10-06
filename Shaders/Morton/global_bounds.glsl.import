@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://dpba3qossw048"
+path="res://.godot/imported/global_bounds.glsl-980636d2a786da8924646d4032fde9f1.res"
+
+[deps]
+
+source_file="res://Shaders/Morton/global_bounds.glsl"
+dest_files=["res://.godot/imported/global_bounds.glsl-980636d2a786da8924646d4032fde9f1.res"]
+
+[params]
+
