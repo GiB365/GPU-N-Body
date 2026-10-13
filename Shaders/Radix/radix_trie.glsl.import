@@ -1,0 +1,14 @@
+[remap]
+
+importer="glsl"
+type="RDShaderFile"
+uid="uid://c0nirmxubq335"
+path="res://.godot/imported/radix_trie.glsl-3a18dc782c2f1712e8213a25de6d3427.res"
+
+[deps]
+
+source_file="res://Shaders/Radix/radix_trie.glsl"
+dest_files=["res://.godot/imported/radix_trie.glsl-3a18dc782c2f1712e8213a25de6d3427.res"]
+
+[params]
+

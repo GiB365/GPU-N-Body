@@ -2,6 +2,8 @@ using Godot;
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
+using System.Collections;
+using System.Collections.Generic;
 
 [StructLayout(LayoutKind.Sequential)]
 public struct GravitatingParticle(float mass, Vector2 position, Vector2 velocity, Vector4 color) {
@@ -77,30 +79,29 @@ public struct ComputeShader {
 				[.. uniformsB],
 				shader, 0
 			);
-		}
-		else {
-			RDUniform[] uniforms = new RDUniform[transforms.Length*2 + bufferCount + textureCount];
+		} else {
+			RDUniform[] uniforms = new RDUniform[transforms.Length * 2 + bufferCount + textureCount];
 
 			for (int i = 0; i < transforms.Length; i++) {
-				RDUniform uniformA = new() { UniformType = RenderingDevice.UniformType.StorageBuffer, Binding = 2*i };
-				RDUniform uniformB = new() { UniformType = RenderingDevice.UniformType.StorageBuffer, Binding = 2*i + 1 };
+				RDUniform uniformA = new() { UniformType = RenderingDevice.UniformType.StorageBuffer, Binding = 2 * i };
+				RDUniform uniformB = new() { UniformType = RenderingDevice.UniformType.StorageBuffer, Binding = 2 * i + 1 };
 				uniformA.AddId(transforms[i].bufferA);
 				uniformB.AddId(transforms[i].bufferB);
 
-				uniforms[2*i] = uniformA;
-				uniforms[2*i + 1] = uniformB;
+				uniforms[2 * i] = uniformA;
+				uniforms[2 * i + 1] = uniformB;
 			}
 
 			for (int i = 0; i < bufferCount; i++) {
-				RDUniform uniform = new() { UniformType = RenderingDevice.UniformType.StorageBuffer, Binding = transforms.Length*2 + i };
+				RDUniform uniform = new() { UniformType = RenderingDevice.UniformType.StorageBuffer, Binding = transforms.Length * 2 + i };
 				uniform.AddId(buffers[i]);
-				uniforms[transforms.Length*2 + i] = uniform;
+				uniforms[transforms.Length * 2 + i] = uniform;
 			}
 
 			for (int i = 0; i < textureCount; i++) {
-				RDUniform uniform = new() { UniformType = RenderingDevice.UniformType.Image, Binding = transforms.Length*2 + bufferCount + i };
+				RDUniform uniform = new() { UniformType = RenderingDevice.UniformType.Image, Binding = transforms.Length * 2 + bufferCount + i };
 				uniform.AddId(textures[i]);
-				uniforms[transforms.Length*2 + bufferCount + i] = uniform;
+				uniforms[transforms.Length * 2 + bufferCount + i] = uniform;
 			}
 
 			uniformSetA = rd.UniformSetCreate(
@@ -119,8 +120,7 @@ public struct ComputeShader {
 
 		if (useBufferB & use_two_sets) {
 			rd.ComputeListBindUniformSet(computeList, uniformSetB, 0);
-		}
-		else {
+		} else {
 			rd.ComputeListBindUniformSet(computeList, uniformSetA, 0);
 		}
 
@@ -136,12 +136,9 @@ public struct ComputeShader {
 	}
 
 	public readonly void Free() {
-		rd.FreeRid(uniformSetA);
+		if (rd.UniformSetIsValid(uniformSetA)) rd.FreeRid(uniformSetA);
+		if (rd.UniformSetIsValid(uniformSetB)) rd.FreeRid(uniformSetB);
 
-		if (uniformSetB.IsValid) {
-			rd.FreeRid(uniformSetB);
-		}
-		
 		rd.FreeRid(pipeline);
 		rd.FreeRid(shader);
 	}
@@ -190,8 +187,7 @@ public class TransformBuffer(uint size, RenderingDevice rd) {
 	public void Update(byte[] bytes, bool useBufferB) {
 		if (!useBufferB) {
 			rd.BufferUpdate(bufferA, 0, (uint)bytes.Length, bytes);
-		}
-		else {
+		} else {
 			rd.BufferUpdate(bufferB, 0, (uint)bytes.Length, bytes);
 		}
 	}
@@ -215,10 +211,10 @@ public partial class NBodySimulationGPU : Node2D {
 	private bool useBufferB = false;
 	private readonly TransformBuffer[] transformBuffers = new TransformBuffer[7];
 
-	private enum TBN { Position, Velocity, Acceleration, Mass, Color, Morton, RadixIndex};
+	private enum TBN { Position, Velocity, Acceleration, Mass, Color, Morton, RadixIndex };
 
 	private Rid boundsBuffer, globalHistogramBuffer, threadHistogramBuffer, scanBuffer;
-	private Rid quadnodeParentBuffer, quadnodeChildrenBuffer, quadnodePositionBuffer, quadnodeSizeBuffer, quadnodeMassBuffer, quadnodeCOMBuffer;
+	private Rid radixTrieIndexBuffer;
 	private Rid particleTransformTexture, particleColorTexture;
 	private uint textureWidth, textureHeight;
 
@@ -226,7 +222,7 @@ public partial class NBodySimulationGPU : Node2D {
 	private MultiMesh multiMesh;
 	private ShaderMaterial mat;
 	public Vector2 cameraOffset;
-	
+
 	private Timer debugTimer;
 
 	private bool initializing;
@@ -236,17 +232,18 @@ public partial class NBodySimulationGPU : Node2D {
 	[Export] public bool debugBothBuffers = false;
 
 	[Export(PropertyHint.Flags, "Position, Velocity, Acceleration, Mass, Color, Morton, RadixIndex, CheckMortons")]
-	public uint DebugParticleProperties {get; set;} = 0;
+	public uint DebugParticleProperties { get; set; } = 0;
 
 	[Export] public bool debugBounds = false;
 	[Export] public bool debugRadixSort = false;
-	[Export] public bool debugZOrderCurve;
+	[Export] public bool debugZOrderCurve = false;
+	[Export] public bool debugRadixTrie = false;
 	[Export] public float debugInterval = 1.0f;
 	public float gravitationalConstant = 10_000.0f;
 
 	[ExportGroup("Generation Settings")]
 
-	[Export(PropertyHint.Enum, "Circle, Square")] 
+	[Export(PropertyHint.Enum, "Circle, Square")]
 	public uint positionGenerationType = 0;
 
 	[Export] public float particleSize = 10.0f;
@@ -272,6 +269,8 @@ public partial class NBodySimulationGPU : Node2D {
 
 	public GravitatingParticle[] particles;
 
+	private bool initialized = false;
+
 	private void InitializeShaders() {
 		transformBuffers[(int)TBN.Position] = new TransformBuffer(2 * sizeof(float) * (uint)particleCount, rd);
 		transformBuffers[(int)TBN.Velocity] = new TransformBuffer(2 * sizeof(float) * (uint)particleCount, rd);
@@ -283,10 +282,12 @@ public partial class NBodySimulationGPU : Node2D {
 
 		boundsBuffer = rd.StorageBufferCreate(sizeof(float) * 4 * (uint)Mathf.CeilToInt(particleCount / workGroupSize));
 
-		uint histogramGroups = (uint)Mathf.CeilToInt(particleCount / (workGroupSize*radixKeysPerThread));
+		uint histogramGroups = (uint)Mathf.CeilToInt(particleCount / (workGroupSize * radixKeysPerThread));
 		globalHistogramBuffer = rd.StorageBufferCreate(sizeof(uint) * radixBase * histogramGroups);
 		threadHistogramBuffer = rd.StorageBufferCreate(sizeof(uint) * radixBase * (uint)workGroupSize * histogramGroups);
-		scanBuffer = rd.StorageBufferCreate((uint)(sizeof(uint) * radixBase * (Mathf.CeilToInt(particleCount / workGroupSize)+1)));
+		scanBuffer = rd.StorageBufferCreate((uint)(sizeof(uint) * radixBase * (Mathf.CeilToInt(particleCount / workGroupSize) + 1)));
+
+		radixTrieIndexBuffer = rd.StorageBufferCreate((uint)(sizeof(uint) * 3 * (particleCount - 1)));
 
 		particleTransformTexture = CreateParticleTexture(particleCount);
 		particleColorTexture = CreateParticleTexture(particleCount);
@@ -296,14 +297,13 @@ public partial class NBodySimulationGPU : Node2D {
 		workgroupBoundsShader = new ComputeShader("res://Shaders/Morton/workgroup_bounds.glsl", [transformBuffers[(int)TBN.Position]], rd, [boundsBuffer]);
 		globalBoundsShader = new ComputeShader("res://Shaders/Morton/global_bounds.glsl", [], rd, [boundsBuffer]);
 		mortonEncodeShader = new ComputeShader("res://Shaders/Morton/encode_positions.glsl", [transformBuffers[(int)TBN.Position], transformBuffers[(int)TBN.Morton]], rd, [boundsBuffer]);
-		
+
 		radixHistogramShader = new ComputeShader("res://Shaders/Radix/histogram.glsl", [transformBuffers[(int)TBN.Morton], transformBuffers[(int)TBN.RadixIndex]], rd, [globalHistogramBuffer], null, false);
 		radixWorkgroupScanShader = new ComputeShader("res://Shaders/Radix/workgroup_scan.glsl", [], rd, [globalHistogramBuffer, scanBuffer]);
 		radixGlobalScanShader = new ComputeShader("res://Shaders/Radix/global_scan.glsl", [], rd, [globalHistogramBuffer, scanBuffer]);
 		radixIndexScatterShader = new ComputeShader("res://Shaders/Radix/index_scatter.glsl", [transformBuffers[(int)TBN.Morton], transformBuffers[(int)TBN.RadixIndex]], rd, [scanBuffer, threadHistogramBuffer], null, false);
 		radixFullScatterShader = new ComputeShader("res://Shaders/Radix/full_scatter.glsl", [transformBuffers[(int)TBN.Position], transformBuffers[(int)TBN.Velocity], transformBuffers[(int)TBN.Acceleration], transformBuffers[(int)TBN.Mass], transformBuffers[(int)TBN.Color], transformBuffers[(int)TBN.Morton], transformBuffers[(int)TBN.RadixIndex]], rd, [], null, false);
-		
-		radixTrieShader = new ComputeShader("res://Shaders/Quadtree/radix_trie.glsl", [transformBuffers[(int)TBN.Morton]], rd, [quadnodeParentBuffer, quadnodeChildrenBuffer]);
+		radixTrieShader = new ComputeShader("res://Shaders/Radix/radix_trie.glsl", [transformBuffers[(int)TBN.Morton]], rd, [radixTrieIndexBuffer]);
 
 		integrationShader = new ComputeShader("res://Shaders/integration.glsl", [transformBuffers[(int)TBN.Position], transformBuffers[(int)TBN.Velocity], transformBuffers[(int)TBN.Acceleration], transformBuffers[(int)TBN.Color]], rd, null, [particleTransformTexture, particleColorTexture]);
 
@@ -311,7 +311,7 @@ public partial class NBodySimulationGPU : Node2D {
 	}
 
 	private void InitializeMultimesh() {
-		var quad = new QuadMesh {
+		QuadMesh quad = new() {
 			Size = new Vector2(particleSize, particleSize)
 		};
 
@@ -329,8 +329,8 @@ public partial class NBodySimulationGPU : Node2D {
 			TransformFormat = MultiMesh.TransformFormatEnum.Transform2D,
 			UseColors = false,
 			UseCustomData = false,
-			InstanceCount = particles.Length,
-			VisibleInstanceCount = particles.Length,
+			InstanceCount = particleCount,
+			VisibleInstanceCount = particleCount,
 			Mesh = quad
 		};
 
@@ -339,7 +339,7 @@ public partial class NBodySimulationGPU : Node2D {
 			Material = mat
 		};
 
-		for (int i = 0; i < particles.Length; i++) {
+		for (int i = 0; i < particleCount; i++) {
 			multiMesh.SetInstanceTransform2D(i, Transform2D.Identity);
 		}
 
@@ -376,7 +376,7 @@ public partial class NBodySimulationGPU : Node2D {
 		for (int i = 0; i < particleCount; i++) {
 			float mass = (float)random.NextDouble() * 10.0f + 1.0f;
 			Vector2 position = Vector2.Zero;
-			
+
 			switch (positionGenerationType) {
 				case 0: // Circle
 					double angle = 2.0 * Math.PI * random.NextDouble();
@@ -397,10 +397,10 @@ public partial class NBodySimulationGPU : Node2D {
 					velocity = new Vector2((float)random.NextDouble() * 100.0f - 50.0f, (float)random.NextDouble() * 100.0f - 50.0f);
 					break;
 				case 2:
-					velocity = position.Rotated((float)Math.PI/-2.0f) * (float)random.NextDouble() * 0.5f;
+					velocity = position.Rotated((float)Math.PI / -2.0f) * (float)random.NextDouble() * 0.5f;
 					break;
 				case 3:
-					velocity = position.Rotated((float)Math.PI/2.0f) * (float)random.NextDouble() * 0.5f;
+					velocity = position.Rotated((float)Math.PI / 2.0f) * (float)random.NextDouble() * 0.5f;
 					break;
 			}
 
@@ -425,7 +425,7 @@ public partial class NBodySimulationGPU : Node2D {
 		useBufferB = false;
 
 		byte[][] bufferBytes = ParticlesToBytes();
-		
+
 		for (int i = 0; i < transformBuffers.Length; i++) {
 			transformBuffers[i].Update(bufferBytes[i], useBufferB);
 		}
@@ -435,9 +435,9 @@ public partial class NBodySimulationGPU : Node2D {
 		cameraOffset = Vector2.Zero;
 		mat.SetShaderParameter("camera_offset", cameraOffset);
 
-		multiMesh.InstanceCount = particles.Length;
-		multiMesh.VisibleInstanceCount = particles.Length;
-		for (int i = 0; i < particles.Length; i++) {
+		multiMesh.InstanceCount = particleCount;
+		multiMesh.VisibleInstanceCount = particleCount;
+		for (int i = 0; i < particleCount; i++) {
 			multiMesh.SetInstanceTransform2D(i, Transform2D.Identity);
 		}
 
@@ -458,7 +458,7 @@ public partial class NBodySimulationGPU : Node2D {
 		InitializeMultimesh();
 
 		byte[][] bufferBytes = ParticlesToBytes();
-		
+
 		for (int i = 0; i < transformBuffers.Length; i++) {
 			transformBuffers[i].Update(bufferBytes[i], useBufferB);
 		}
@@ -477,11 +477,14 @@ public partial class NBodySimulationGPU : Node2D {
 			debugTimer.Start();
 		}
 
+		initialized = true;
 		GD.Print("Simulation initialized with ", particleCount, " particles.");
 	}
 
 	public override void _Process(double delta) {
-		uint particleGroups = (uint)Mathf.CeilToInt(particles.Length / workGroupSize);
+		if (!initialized) return;
+
+		uint particleGroups = (uint)Mathf.CeilToInt(particleCount / workGroupSize);
 
 		long computeList = rd.ComputeListBegin();
 
@@ -493,21 +496,21 @@ public partial class NBodySimulationGPU : Node2D {
 		mortonEncodeShader.Bind(computeList, [mortonBitsPerAxis, particleCount], particleGroups, useBufferB);
 		rd.ComputeListAddBarrier(computeList);
 
-		uint histogramGroups = (uint)Mathf.CeilToInt(particleCount / (workGroupSize*radixKeysPerThread));
+		uint histogramGroups = (uint)Mathf.CeilToInt(particleCount / (workGroupSize * radixKeysPerThread));
 		bool propertiesStoredInB = useBufferB;
 		bool indiciesStoredInB = useBufferB;
 
-		for (uint pass = 0; pass < 8*sizeof(uint) / radixBits; pass++) {
-			radixHistogramShader.Bind(computeList, [radixBase, radixKeysPerThread, particleCount, pass*radixBits, indiciesStoredInB ? 1 : 0, propertiesStoredInB ? 1 : 0], histogramGroups, useBufferB);
+		for (uint pass = 0; pass < 8 * sizeof(uint) / radixBits; pass++) {
+			radixHistogramShader.Bind(computeList, [radixBase, radixKeysPerThread, particleCount, pass * radixBits, indiciesStoredInB ? 1 : 0, propertiesStoredInB ? 1 : 0], histogramGroups, useBufferB);
 			rd.ComputeListAddBarrier(computeList);
-			
+
 			radixWorkgroupScanShader.Bind(computeList, [radixBase], histogramGroups, useBufferB);
 			rd.ComputeListAddBarrier(computeList);
-			
+
 			radixGlobalScanShader.Bind(computeList, [radixBase, histogramGroups], 1, useBufferB);
 			rd.ComputeListAddBarrier(computeList);
-		
-			radixIndexScatterShader.Bind(computeList, [radixBase, particleCount, radixKeysPerThread, pass*radixBits, histogramGroups, indiciesStoredInB ? 1 : 0, propertiesStoredInB ? 1 : 0], histogramGroups, useBufferB);
+
+			radixIndexScatterShader.Bind(computeList, [radixBase, particleCount, radixKeysPerThread, pass * radixBits, histogramGroups, indiciesStoredInB ? 1 : 0, propertiesStoredInB ? 1 : 0], histogramGroups, useBufferB);
 			rd.ComputeListAddBarrier(computeList);
 
 			indiciesStoredInB = !indiciesStoredInB;
@@ -565,8 +568,7 @@ public partial class NBodySimulationGPU : Node2D {
 			if (debugBothBuffers) {
 				DebugParticleBuffers(!useBufferB);
 				DebugParticleBuffers(useBufferB);
-			}
-			else {
+			} else {
 				DebugParticleBuffers();
 			}
 		}
@@ -574,7 +576,7 @@ public partial class NBodySimulationGPU : Node2D {
 		if (debugBounds) {
 			DebugBoundsBuffers();
 		}
-	
+
 		if (debugRadixSort) {
 			DebugRadixSortBuffers();
 		}
@@ -583,25 +585,29 @@ public partial class NBodySimulationGPU : Node2D {
 			DebugZOrderCurve();
 		}
 
+		if (debugRadixTrie) {
+			DebugRadixTrie();
+		}
+
 		debugTimer.Start();
 	}
 
 	private void DebugParticleBuffers(bool useCurrentBuffer = true) {
-		byte[] positionBytes = (useBufferB^useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Position].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Position].bufferB);
-		byte[] velocityBytes = (useBufferB^useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Velocity].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Velocity].bufferB);
-		byte[] accelerationBytes = (useBufferB^useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Acceleration].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Acceleration].bufferB);
-		byte[] massBytes = (useBufferB^useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Mass].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Mass].bufferB);
-		byte[] colorBytes = (useBufferB^useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Color].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Color].bufferB);
-		byte[] mortonBytes = (useBufferB^useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Morton].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Morton].bufferB);
-		byte[] radixIndexBytes = (useBufferB^useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.RadixIndex].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.RadixIndex].bufferB);
+		byte[] positionBytes = (useBufferB ^ useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Position].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Position].bufferB);
+		byte[] velocityBytes = (useBufferB ^ useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Velocity].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Velocity].bufferB);
+		byte[] accelerationBytes = (useBufferB ^ useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Acceleration].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Acceleration].bufferB);
+		byte[] massBytes = (useBufferB ^ useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Mass].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Mass].bufferB);
+		byte[] colorBytes = (useBufferB ^ useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Color].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Color].bufferB);
+		byte[] mortonBytes = (useBufferB ^ useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.Morton].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.Morton].bufferB);
+		byte[] radixIndexBytes = (useBufferB ^ useCurrentBuffer) ? rd.BufferGetData(transformBuffers[(int)TBN.RadixIndex].bufferA) : rd.BufferGetData(transformBuffers[(int)TBN.RadixIndex].bufferB);
 
-		float[] positions = new float[particles.Length * 2];
-		float[] velocities = new float[particles.Length * 2];
-		float[] accelerations = new float[particles.Length * 2];
-		float[] masses = new float[particles.Length];
-		float[] colors = new float[particles.Length * 4];
-		uint[] mortons = new uint[particles.Length];
-		uint[] radixIndices = new uint[particles.Length];
+		float[] positions = new float[particleCount * 2];
+		float[] velocities = new float[particleCount * 2];
+		float[] accelerations = new float[particleCount * 2];
+		float[] masses = new float[particleCount];
+		float[] colors = new float[particleCount * 4];
+		uint[] mortons = new uint[particleCount];
+		uint[] radixIndices = new uint[particleCount];
 
 		Buffer.BlockCopy(positionBytes, 0, positions, 0, positionBytes.Length);
 		Buffer.BlockCopy(velocityBytes, 0, velocities, 0, velocityBytes.Length);
@@ -611,9 +617,9 @@ public partial class NBodySimulationGPU : Node2D {
 		Buffer.BlockCopy(mortonBytes, 0, mortons, 0, mortonBytes.Length);
 		Buffer.BlockCopy(radixIndexBytes, 0, radixIndices, 0, radixIndexBytes.Length);
 
-		var stringBuilder = new StringBuilder(positions.Length * 300);
+		StringBuilder stringBuilder = new(positions.Length * 300);
 
-		stringBuilder.Append("Buffer: ").Append((useBufferB ^ useCurrentBuffer) ? "A\n" : "B\n");
+		stringBuilder.Append($"Buffer: {(useBufferB ^ useCurrentBuffer ? 'A' : 'B')}\n");
 		uint lastMorton = 0;
 
 		Godot.Collections.Dictionary<float, uint> previousRadixIndices = []; // RadixIndex, Index
@@ -621,26 +627,25 @@ public partial class NBodySimulationGPU : Node2D {
 		for (uint i = 0; i < particleCount; i++) {
 			stringBuilder.Append('[').Append(i).Append("] ");
 			if ((DebugParticleProperties & 1) != 0) {
-				stringBuilder.Append("Position: (").Append(positions[i*2]).Append(", ").Append(positions[i*2 + 1]).Append(") ");
+				stringBuilder.Append($"Position: ({positions[i * 2]}, {positions[i * 2 + 1]})");
 			}
 			if ((DebugParticleProperties & 2) != 0) {
-				stringBuilder.Append("Velocity: (").Append(velocities[i*2]).Append(", ").Append(velocities[i*2 + 1]).Append(") ");
+				stringBuilder.Append($"Velocity: ({velocities[i * 2]}, {velocities[i * 2 + 1]})");
 			}
 			if ((DebugParticleProperties & 4) != 0) {
-				stringBuilder.Append("Acceleration: (").Append(accelerations[i*2]).Append(", ").Append(accelerations[i*2 + 1]).Append(") ");
+				stringBuilder.Append($"Acceleration: ({accelerations[i * 2]}, {accelerations[i * 2 + 1]})");
 			}
 			if ((DebugParticleProperties & 8) != 0) {
-				stringBuilder.Append("Mass: ").Append(masses[i]).Append(' ');
+				stringBuilder.Append($"Mass: {masses[i]}");
 			}
 			if ((DebugParticleProperties & 16) != 0) {
-				stringBuilder.Append("Color: (").Append(colors[i*4 + 0]).Append(", ").Append(colors[i*4 + 1]).Append(", ").Append(colors[i*4 + 2]).Append(") ");
+				stringBuilder.Append($"Color: ({colors[i * 4]}, {colors[i * 4 + 1]}, {colors[i * 4 + 2]})");
 			}
 			if ((DebugParticleProperties & 32) != 0) {
-				stringBuilder.Append("Morton: ").Append(mortons[i]).Append(' ');
-				
+				stringBuilder.Append($"Morton: {mortons[i]}");
 			}
 			if ((DebugParticleProperties & 64) != 0) {
-				stringBuilder.Append("Radix index: ").Append(radixIndices[i]).Append(' ');
+				stringBuilder.Append($"Radix Index: {radixIndices[i]}");
 			}
 
 			if ((DebugParticleProperties & 128) != 0) {
@@ -649,7 +654,7 @@ public partial class NBodySimulationGPU : Node2D {
 				}
 
 				if (previousRadixIndices.ContainsKey(radixIndices[i])) {
-					GD.Print("Radix Sort Error: Duplicate Indices (", previousRadixIndices[radixIndices[i]], ") and (", i, ") for index (", radixIndices[i], ")");
+					GD.PrintErr($"Radix Sort Error: Duplicate Indices ({previousRadixIndices[radixIndices[i]]} and ({i}) for index ({radixIndices[i]})");
 					continue;
 				}
 
@@ -666,9 +671,9 @@ public partial class NBodySimulationGPU : Node2D {
 			}
 		}
 
-		GD.Print("Particles: \n", stringBuilder.ToString());
+		GD.Print($"Particles: \n {stringBuilder}");
 
-		
+
 	}
 
 	private void DebugBoundsBuffers() {
@@ -676,59 +681,113 @@ public partial class NBodySimulationGPU : Node2D {
 		float[] bounds = new float[boundsBytes.Length / sizeof(float)];
 		Buffer.BlockCopy(boundsBytes, 0, bounds, 0, boundsBytes.Length);
 
-		var stringBuilder = new StringBuilder(256);
+		StringBuilder stringBuilder = new(256);
 
-		for (int i = 0; i < bounds.Length; i+= 4) {
-			stringBuilder.Append("Max: ").Append(bounds[i]).Append(", ").Append(bounds[i+1]).Append('\n');
-			stringBuilder.Append("Min: ").Append(bounds[i+2]).Append(", ").Append(bounds[i+3]).Append('\n');
+		for (int i = 0; i < bounds.Length; i += 4) {
+			stringBuilder.Append($"Max: ({bounds[i]}, {bounds[i + 1]})\n Min: ({bounds[i + 2]}, {bounds[i + 3]})\n");
 		}
-		
 
-		GD.Print("Bounds: \n", stringBuilder.ToString());
+
+		GD.Print($"Bounds: \n {stringBuilder}");
 	}
 
 	private void DebugRadixSortBuffers() {
 		byte[] histogramBytes = rd.BufferGetData(globalHistogramBuffer);
 		byte[] scanBytes = rd.BufferGetData(scanBuffer);
-		
+
 		uint[] histogram = new uint[histogramBytes.Length / sizeof(uint)];
 		uint[] scan = new uint[scanBytes.Length / sizeof(uint)];
-		
+
 		Buffer.BlockCopy(scanBytes, 0, scan, 0, scanBytes.Length);
 		Buffer.BlockCopy(histogramBytes, 0, histogram, 0, histogramBytes.Length);
-		
-		var stringBuilder = new StringBuilder(histogram.Length * 32);
+
+		StringBuilder stringBuilder = new(histogram.Length * 32);
 
 		for (int i = 0; i < histogram.Length; i++) {
-			stringBuilder.Append("Digit: ").Append(i%radixBase).Append(", Count: ").Append(histogram[i]).Append(", Offset: ").Append(scan[i+radixBase]).Append('\n');
+			stringBuilder.Append($"Digit: {i % radixBase}, Count: {histogram[i]}, Offset: {scan[i + radixBase]}\n");
 		}
 
 		for (int i = 0; i < radixBase; i++) {
-			stringBuilder.Append("Digit: ").Append(i).Append(", Global Offset: ").Append(scan[i]).Append('\n');
+			stringBuilder.Append($"Digit: {i}, Global Offset: {scan[i]}");
 		}
 
-		GD.Print("Radix Bits: " + radixBits + " Radix Base: " + radixBase + "\n" + stringBuilder.ToString());
+		GD.Print($"Radix Bits: {radixBits}, Radix Base: {radixBase}\n {stringBuilder}");
 	}
 
 	private void DebugZOrderCurve() {
 		byte[] positionBytes = useBufferB ? rd.BufferGetData(transformBuffers[(int)TBN.Position].bufferB) : rd.BufferGetData(transformBuffers[(int)TBN.Position].bufferA);
 		byte[] mortonBytes = useBufferB ? rd.BufferGetData(transformBuffers[(int)TBN.Morton].bufferB) : rd.BufferGetData(transformBuffers[(int)TBN.Morton].bufferA);
-		
-		float[] positions = new float[particles.Length * 2];
-		uint[] mortons = new uint[particles.Length];
+
+		float[] positions = new float[particleCount * 2];
+		uint[] mortons = new uint[particleCount];
 
 		Buffer.BlockCopy(positionBytes, 0, positions, 0, positionBytes.Length);
 		Buffer.BlockCopy(mortonBytes, 0, mortons, 0, mortonBytes.Length);
 
 		zOrderLinePositions = new Vector2[particleCount];
 		zOrderLineColors = new Color[particleCount];
-		
+
 		for (int i = 0; i < particleCount; i++) {
-			zOrderLinePositions[i] = new Vector2(positions[2*i], positions[2*i+1]);
+			zOrderLinePositions[i] = new Vector2(positions[2 * i], positions[2 * i + 1]);
 			zOrderLineColors[i] = ((mortons[i] >> 29) & 1) == 1 ? new(0.4f, 0.4f, 0.8f) : new(0.5f, 0.5f, 0.3f);
 		}
 
 		QueueRedraw();
+	}
+
+	private void DebugRadixTrie() {
+		byte[] radixTrieIndexBytes = rd.BufferGetData(radixTrieIndexBuffer);
+
+		uint[] radixTrieIndices = new uint[3 * (particleCount - 1)];
+
+		Buffer.BlockCopy(radixTrieIndexBytes, 0, radixTrieIndices, 0, radixTrieIndexBytes.Length);
+
+		Stack<Vector2I> indexStack = new();
+		indexStack.Push(new(0, 0));
+
+		StringBuilder stringBuilder = new(particleCount * 20);
+
+
+		while (indexStack.Count > 0) {
+			Vector2I current_index_level = indexStack.Pop();
+
+			if (current_index_level.X < 0 || (current_index_level.X == 0 && indexStack.Count != 0)) {
+				for (int i = 0; i < current_index_level.Y; i++) {
+					stringBuilder.Append("+");
+				}
+
+				stringBuilder.Append($"{-current_index_level.X}\n");
+				continue;
+			}
+
+			bool left_child_leaf = (radixTrieIndices[3 * current_index_level.X + 1] & 1) == 1;
+			bool right_child_leaf = (radixTrieIndices[3 * current_index_level.X + 2] & 1) == 1;
+
+			uint left_child = radixTrieIndices[3 * current_index_level.X + 1] >> 1;
+			uint right_child = radixTrieIndices[3 * current_index_level.X + 2] >> 1;
+
+			for (int i = 0; i < current_index_level.Y; i++) {
+				stringBuilder.Append("-");
+			}
+
+			stringBuilder.Append($"{current_index_level.X} ({left_child}, {right_child})\n");
+
+			if (!right_child_leaf) {
+				indexStack.Push(new((int)right_child, current_index_level.Y + 1));
+			}
+			else {
+				indexStack.Push(new(-(int)right_child, current_index_level.Y + 1));
+			}
+
+			if (!left_child_leaf) {
+				indexStack.Push(new((int)left_child, current_index_level.Y + 1));
+			}
+			else {
+				indexStack.Push(new(-(int)left_child, current_index_level.Y + 1));
+			}
+		}
+
+		GD.Print($"Radix Trie:\n {stringBuilder}");
 	}
 
 	public override void _Draw() {
@@ -737,15 +796,15 @@ public partial class NBodySimulationGPU : Node2D {
 	}
 
 	private byte[][] ParticlesToBytes() {
-		Vector2[] positions = new Vector2[particles.Length];
-		Vector2[] velocities = new Vector2[particles.Length];
-		Vector2[] accelerations = new Vector2[particles.Length];
-		float[] masses = new float[particles.Length];
-		Vector4[] colors = new Vector4[particles.Length];
-		uint[] mortons = new uint[particles.Length];
-		uint[] radixIndices = new uint[particles.Length];
+		Vector2[] positions = new Vector2[particleCount];
+		Vector2[] velocities = new Vector2[particleCount];
+		Vector2[] accelerations = new Vector2[particleCount];
+		float[] masses = new float[particleCount];
+		Vector4[] colors = new Vector4[particleCount];
+		uint[] mortons = new uint[particleCount];
+		uint[] radixIndices = new uint[particleCount];
 
-		for (uint i = 0; i < particles.Length; i++) {
+		for (uint i = 0; i < particleCount; i++) {
 			positions[i] = particles[i].position;
 			velocities[i] = particles[i].velocity;
 			accelerations[i] = particles[i].acceleration;
@@ -767,6 +826,12 @@ public partial class NBodySimulationGPU : Node2D {
 	}
 
 	private void FreeResources() {
+		mat.SetShaderParameter("particle_transform", new Texture2D());
+		mat.SetShaderParameter("particle_color", new Texture2D());
+
+		rd.FreeRid(particleTransformTexture);
+		rd.FreeRid(particleColorTexture);
+
 		workgroupBoundsShader.Free();
 
 		mortonEncodeShader.Free();
@@ -776,6 +841,7 @@ public partial class NBodySimulationGPU : Node2D {
 		radixGlobalScanShader.Free();
 		radixIndexScatterShader.Free();
 		radixFullScatterShader.Free();
+		radixTrieShader.Free();
 
 		naiveForcesShader.Free();
 
@@ -789,14 +855,11 @@ public partial class NBodySimulationGPU : Node2D {
 		rd.FreeRid(globalHistogramBuffer);
 		rd.FreeRid(threadHistogramBuffer);
 		rd.FreeRid(scanBuffer);
-
-		rd.FreeRid(particleTransformTexture);
-		rd.FreeRid(particleColorTexture);
 	}
 
 	public override void _ExitTree() {
 		FreeResources();
-	
+
 		GD.Print("Freed shaders and buffers.");
 		base._ExitTree();
 	}
